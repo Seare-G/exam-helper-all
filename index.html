@@ -69,6 +69,16 @@
         buildGrid();
       }
 
+      // === ESCAPE JSON ===
+      function escapeJSON(str) {
+        return str
+          .replace(/\\/g, "\\\\")
+          .replace(/"/g, '\\"')
+          .replace(/\n/g, "\\n")
+          .replace(/\r/g, "\\r")
+          .replace(/\t/g, "\\t");
+      }
+
       // === SEND QUESTION ===
       function sendQuestion() {
         var question = document.getElementById("questionInput").value;
@@ -88,12 +98,15 @@
         }
 
         var url = SUPABASE_URL + "/rest/v1/exam_questions";
-        var data =
-          '{"question_number":' +
-          selectedNumber +
-          ',"question":"' +
-          question.trim() +
-          '"}';
+
+        // Build JSON safely
+        var jsonData = {
+          question_number: selectedNumber,
+          question: question.trim(),
+          answer: null,
+        };
+
+        var data = JSON.stringify(jsonData);
 
         xhr.open("POST", url, true);
         xhr.setRequestHeader("apikey", SUPABASE_KEY);
@@ -111,7 +124,9 @@
                 selectNumber(next);
               }
             } else {
-              status.innerHTML = "⚠️ Error: " + xhr.status;
+              status.innerHTML =
+                "⚠️ Error: " + xhr.status + " - " + xhr.responseText;
+              console.log("Response:", xhr.responseText);
             }
           }
         };
