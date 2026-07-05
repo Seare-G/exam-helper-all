@@ -24,7 +24,7 @@
 
       var selectedNumber = 1;
 
-      // === CREATE XHR (works in IE) ===
+      // === CREATE XHR ===
       function createXHR() {
         try {
           return new XMLHttpRequest();
@@ -69,16 +69,6 @@
         buildGrid();
       }
 
-      // === ESCAPE JSON ===
-      function escapeJSON(str) {
-        return str
-          .replace(/\\/g, "\\\\")
-          .replace(/"/g, '\\"')
-          .replace(/\n/g, "\\n")
-          .replace(/\r/g, "\\r")
-          .replace(/\t/g, "\\t");
-      }
-
       // === SEND QUESTION ===
       function sendQuestion() {
         var question = document.getElementById("questionInput").value;
@@ -99,14 +89,13 @@
 
         var url = SUPABASE_URL + "/rest/v1/exam_questions";
 
-        // Build JSON safely
-        var jsonData = {
+        var data = {
           question_number: selectedNumber,
           question: question.trim(),
           answer: null,
         };
 
-        var data = JSON.stringify(jsonData);
+        var jsonData = JSON.stringify(data);
 
         xhr.open("POST", url, true);
         xhr.setRequestHeader("apikey", SUPABASE_KEY);
@@ -126,12 +115,11 @@
             } else {
               status.innerHTML =
                 "⚠️ Error: " + xhr.status + " - " + xhr.responseText;
-              console.log("Response:", xhr.responseText);
             }
           }
         };
 
-        xhr.send(data);
+        xhr.send(jsonData);
       }
 
       // === START ===
