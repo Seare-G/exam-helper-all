@@ -160,52 +160,62 @@
         return document.getElementById(id);
       }
 
-      // === BUILD GRID (Using Table for IE) ===
+      // === BUILD GRID (Using DOM Methods - IE Compatible) ===
       function buildGrid() {
         var grid = getEl("questionGrid");
         if (!grid) return;
 
-        var html = "";
+        // Clear the table using DOM methods (NOT innerHTML)
+        while (grid.hasChildNodes()) {
+          grid.removeChild(grid.lastChild);
+        }
 
         for (var row = 0; row < 10; row++) {
-          html += "<tr>";
+          var tr = document.createElement("tr");
+
           for (var col = 0; col < 10; col++) {
             var num = row * 10 + col + 1;
             if (num > 100) break;
 
-            var cls = "grid-btn";
-            var status = getQuestionStatus(num);
-            var answerText = "";
+            var td = document.createElement("td");
 
+            var btn = document.createElement("button");
+            btn.className = "grid-btn";
+            btn.setAttribute("onclick", "selectQuestion(" + num + ")");
+
+            // Check status
+            var status = getQuestionStatus(num);
             if (status === "answered") {
-              cls += " answered";
+              btn.className += " answered";
               var q = getQuestionByNumber(num);
               if (q && q.answer) {
-                answerText = q.answer;
+                // Add answer text below the number
+                var numSpan = document.createTextNode(num);
+                btn.appendChild(numSpan);
+                var answerSpan = document.createElement("span");
+                answerSpan.className = "answer-text";
+                answerSpan.appendChild(document.createTextNode(q.answer));
+                btn.appendChild(answerSpan);
+              } else {
+                btn.appendChild(document.createTextNode(num));
               }
             } else if (status === "pending") {
-              cls += " pending";
+              btn.className += " pending";
+              btn.appendChild(document.createTextNode(num));
+            } else {
+              btn.appendChild(document.createTextNode(num));
             }
-            if (num === selectedNumber) cls += " selected";
 
-            html += "<td>";
-            html +=
-              '<button class="' +
-              cls +
-              '" onclick="selectQuestion(' +
-              num +
-              ')">';
-            html += num;
-            if (answerText) {
-              html += '<span class="answer-text">' + answerText + "</span>";
+            if (num === selectedNumber) {
+              btn.className += " selected";
             }
-            html += "</button>";
-            html += "</td>";
+
+            td.appendChild(btn);
+            tr.appendChild(td);
           }
-          html += "</tr>";
-        }
 
-        grid.innerHTML = html;
+          grid.appendChild(tr);
+        }
       }
 
       // === GET QUESTION STATUS ===
@@ -246,7 +256,11 @@
       // === LOAD DATA ===
       function loadData() {
         var xhr = createXHR();
-        if (!xhr) return;
+        if (!xhr) {
+          var statusEl = getEl("statusText");
+          if (statusEl) statusEl.innerHTML = "⚠️ Browser not supported";
+          return;
+        }
 
         var url =
           SUPABASE_URL + "/rest/v1/exam_questions?select=*&order=id.asc";
@@ -256,20 +270,28 @@
         xhr.setRequestHeader("Authorization", "Bearer " + SUPABASE_KEY);
 
         xhr.onreadystatechange = function () {
-          if (xhr.readyState === 4 && xhr.status === 200) {
-            try {
-              var data = JSON.parse(xhr.responseText);
-              allQuestions = [];
-              for (var i = 0; i < data.length; i++) {
-                data[i].number = i + 1;
-                allQuestions.push(data[i]);
+          if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+              try {
+                var data = JSON.parse(xhr.responseText);
+                allQuestions = [];
+                for (var i = 0; i < data.length; i++) {
+                  data[i].number = i + 1;
+                  allQuestions.push(data[i]);
+                }
+                buildGrid();
+                displayData();
+                var statusEl = getEl("statusText");
+                if (statusEl)
+                  statusEl.innerHTML = "✅ Updated " + getCurrentTime();
+              } catch (e) {
+                var statusEl = getEl("statusText");
+                if (statusEl) statusEl.innerHTML = "⚠️ Error parsing data";
               }
-              buildGrid();
-              displayData();
+            } else {
               var statusEl = getEl("statusText");
-              if (statusEl)
-                statusEl.innerHTML = "✅ Updated " + getCurrentTime();
-            } catch (e) {}
+              if (statusEl) statusEl.innerHTML = "⚠️ Error: " + xhr.status;
+            }
           }
         };
         xhr.send();
