@@ -16,7 +16,6 @@
         background: white;
         padding: 20px;
       }
-
       .grid-table {
         width: 100%;
         border-collapse: collapse;
@@ -56,7 +55,6 @@
         font-size: 10px;
         color: #28a745;
       }
-
       .question-area {
         background: #f8f9fa;
         padding: 15px;
@@ -108,13 +106,8 @@
       <h1>📝 Exam Helper</h1>
       <p class="status">🔗 Share this link with your friend</p>
 
-      <!-- Number Grid (1-100) -->
-      <table
-        class="grid-table"
-        id="questionGrid"
-        cellpadding="0"
-        cellspacing="0"
-      ></table>
+      <!-- Number Grid (1-100) - Built by JavaScript during page load -->
+      <div id="gridContainer"></div>
 
       <!-- Question Input -->
       <div class="question-area">
@@ -130,7 +123,6 @@
         </button>
       </div>
 
-      <!-- All Questions List -->
       <hr />
       <h3>📋 All Questions</h3>
       <button onclick="loadData()" style="background: #28a745">
@@ -147,32 +139,6 @@
           return this.replace(/^\s+|\s+$/g, "");
         };
       }
-      if (typeof JSON === "undefined") {
-        JSON = {
-          parse: function (s) {
-            return eval("(" + s + ")");
-          },
-          stringify: function (obj) {
-            var parts = [];
-            for (var key in obj) {
-              if (obj.hasOwnProperty(key)) {
-                var val = obj[key];
-                var escaped =
-                  '"' +
-                  String(val)
-                    .replace(/\\/g, "\\\\")
-                    .replace(/"/g, '\\"')
-                    .replace(/\r/g, "\\r")
-                    .replace(/\n/g, "\\n")
-                    .replace(/\t/g, "\\t") +
-                  '"';
-                parts.push('"' + key + '":' + escaped);
-              }
-            }
-            return "{" + parts.join(",") + "}";
-          },
-        };
-      }
 
       // === SUPABASE CONFIGURATION ===
       var SUPABASE_URL = "https://ezemjswkfngduvfwnexv.supabase.co";
@@ -181,7 +147,7 @@
       var selectedNumber = 1;
       var allQuestions = [];
 
-      // === CREATE XHR (Works in ALL IE versions) ===
+      // === CREATE XHR ===
       function createXHR() {
         try {
           return new XMLHttpRequest();
@@ -200,65 +166,57 @@
         return document.getElementById(id);
       }
 
-      // === BUILD GRID (Using DOM Methods - IE Compatible) ===
-      function buildGrid() {
-        var grid = getEl("questionGrid");
-        if (!grid) return;
-
-        // Clear the table using DOM methods (NOT innerHTML)
-        while (grid.hasChildNodes()) {
-          grid.removeChild(grid.lastChild);
-        }
+      // === BUILD GRID (Using document.write approach - IE compatible) ===
+      function buildGridHTML() {
+        var html = '<table class="grid-table" cellpadding="0" cellspacing="0">';
 
         for (var row = 0; row < 10; row++) {
-          var tr = document.createElement("tr");
-
+          html += "<tr>";
           for (var col = 0; col < 10; col++) {
             var num = row * 10 + col + 1;
             if (num > 100) break;
 
-            var td = document.createElement("td");
-
-            var btn = document.createElement("button");
-            btn.className = "grid-btn";
-            btn.onclick = (function (n) {
-              return function () {
-                selectQuestion(n);
-              };
-            })(num);
-
-            // Check status
             var status = getQuestionStatus(num);
+            var cls = "grid-btn";
+            var answerText = "";
+
             if (status === "answered") {
-              btn.className += " answered";
+              cls += " answered";
               var q = getQuestionByNumber(num);
               if (q && q.answer) {
-                // Add answer text below the number
-                var numSpan = document.createTextNode(num);
-                btn.appendChild(numSpan);
-                var answerSpan = document.createElement("span");
-                answerSpan.className = "answer-text";
-                answerSpan.appendChild(document.createTextNode(q.answer));
-                btn.appendChild(answerSpan);
-              } else {
-                btn.appendChild(document.createTextNode(num));
+                answerText = q.answer;
               }
             } else if (status === "pending") {
-              btn.className += " pending";
-              btn.appendChild(document.createTextNode(num));
-            } else {
-              btn.appendChild(document.createTextNode(num));
+              cls += " pending";
             }
+            if (num === selectedNumber) cls += " selected";
 
-            if (num === selectedNumber) {
-              btn.className += " selected";
+            html += "<td>";
+            html +=
+              '<button class="' +
+              cls +
+              '" onclick="selectQuestion(' +
+              num +
+              ')">';
+            html += num;
+            if (answerText) {
+              html += '<span class="answer-text">' + answerText + "</span>";
             }
-
-            td.appendChild(btn);
-            tr.appendChild(td);
+            html += "</button>";
+            html += "</td>";
           }
+          html += "</tr>";
+        }
 
-          grid.appendChild(tr);
+        html += "</table>";
+        return html;
+      }
+
+      // === REFRESH GRID ===
+      function refreshGrid() {
+        var container = getEl("gridContainer");
+        if (container) {
+          container.innerHTML = buildGridHTML();
         }
       }
 
@@ -294,7 +252,7 @@
           if (input) input.value = "";
         }
 
-        buildGrid();
+        refreshGrid();
       }
 
       // === LOAD DATA ===
@@ -323,7 +281,7 @@
                   data[i].number = i + 1;
                   allQuestions.push(data[i]);
                 }
-                buildGrid();
+                refreshGrid();
                 displayData();
                 var statusEl = getEl("statusText");
                 if (statusEl)
@@ -374,7 +332,7 @@
         if (!xhr) return;
 
         var url = SUPABASE_URL + "/rest/v1/exam_questions";
-        var data = JSON.stringify({ question: q.trim(), answer: "" });
+        var data = '{"question":"' + q.trim() + '","answer":""}';
 
         xhr.open("POST", url, true);
         xhr.setRequestHeader("apikey", SUPABASE_KEY);
@@ -412,7 +370,7 @@
           if (!xhr) return;
 
           var url = SUPABASE_URL + "/rest/v1/exam_questions?id=eq." + id;
-          var data = JSON.stringify({ answer: answer.trim() });
+          var data = '{"answer":"' + answer.trim() + '"}';
 
           xhr.open("PATCH", url, true);
           xhr.setRequestHeader("apikey", SUPABASE_KEY);
@@ -490,7 +448,7 @@
             html +=
               ' <button onclick="addAnswer(' +
               item.id +
-              ')">Add Answer</button>';
+              ')">📝 Add Answer</button>';
           }
           html += "</div>";
         }
@@ -533,13 +491,18 @@
 
       // === INIT ===
       function init() {
-        buildGrid();
+        // Build initial grid with no data
+        refreshGrid();
         loadData();
         window.setTimeout(autoRefresh, 3000);
       }
 
-      // === START (script is at bottom — DOM is ready) ===
-      init();
+      // === START ===
+      if (document.readyState === "complete") {
+        init();
+      } else {
+        window.attachEvent("onload", init);
+      }
     </script>
   </body>
 </html>
