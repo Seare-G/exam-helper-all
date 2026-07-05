@@ -1,7 +1,7 @@
 <!doctype html>
 <html>
   <head>
-    <title>Exam Helper - Pro</title>
+    <title>Exam Helper</title>
     <style>
       body {
         font-family: Arial;
@@ -16,29 +16,27 @@
       }
 
       .grid {
-        display: block;
-        margin: 15px 0;
-        padding: 10px;
         background: #f8f9fa;
+        padding: 15px;
         border: 1px solid #ddd;
+        margin: 10px 0;
       }
       .grid-row {
-        display: block;
-        margin: 4px 0;
         clear: both;
+        display: block;
       }
       .grid-btn {
         float: left;
-        width: 35px;
-        height: 35px;
-        margin: 2px;
-        border: 1px solid #ccc;
+        width: 45px;
+        height: 45px;
+        margin: 3px;
+        border: 2px solid #ccc;
         background: white;
         cursor: hand;
         font-weight: bold;
-        font-size: 12px;
+        font-size: 14px;
         text-align: center;
-        line-height: 35px;
+        line-height: 45px;
       }
       .grid-btn.selected {
         border-color: #007bff;
@@ -52,29 +50,24 @@
         background: #fff3cd;
         border-color: #ffc107;
       }
-      .grid-btn.sent {
-        background: #cce5ff;
-        border-color: #007bff;
+      .grid-btn .answer-text {
+        font-size: 10px;
+        display: block;
+        line-height: 14px;
+        color: #28a745;
       }
 
-      .question-box {
+      .question-area {
         background: #f8f9fa;
         padding: 15px;
         margin: 10px 0;
         border-left: 5px solid #007bff;
       }
-      .question-box.answered {
-        border-left-color: #28a745;
-      }
-      .question-box.pending {
-        border-left-color: #ffc107;
-      }
-
       textarea {
         width: 100%;
         height: 80px;
-        margin: 10px 0;
         padding: 8px;
+        margin: 5px 0;
       }
       button {
         padding: 10px 20px;
@@ -87,44 +80,25 @@
         color: #666;
         font-size: 14px;
       }
-      .role-btn {
-        padding: 8px 20px;
-        margin: 0 5px;
-        background: #6c757d;
-        color: white;
-        border: none;
-        cursor: hand;
+      .question-list {
+        margin-top: 20px;
       }
-      .role-btn.active {
-        background: #28a745;
+      .q-item {
+        padding: 10px;
+        margin: 5px 0;
+        border-left: 5px solid #ffc107;
+        background: #fff;
       }
-
-      .legend {
-        margin: 10px 0;
-        font-size: 14px;
+      .q-item.answered {
+        border-left-color: #28a745;
       }
-      .legend span {
-        margin-right: 15px;
+      .q-item .q-text {
+        font-weight: bold;
       }
-      .legend .dot {
-        display: inline-block;
-        width: 12px;
-        height: 12px;
-        margin-right: 3px;
+      .q-item .q-answer {
+        color: #28a745;
+        font-weight: bold;
       }
-      .legend .dot.answered {
-        background: #28a745;
-      }
-      .legend .dot.pending {
-        background: #ffc107;
-      }
-      .legend .dot.sent {
-        background: #007bff;
-      }
-      .legend .dot.empty {
-        background: #ddd;
-      }
-
       .clear {
         clear: both;
       }
@@ -132,33 +106,15 @@
   </head>
   <body>
     <div class="container">
-      <h1>📝 Exam Helper Pro</h1>
+      <h1>📝 Exam Helper</h1>
       <p class="status">🔗 Share this link with your friend</p>
 
-      <!-- Role Selector -->
-      <div>
-        <button class="role-btn active" id="roleMe" onclick="setRole('me')">
-          👤 Me (Student)
-        </button>
-        <button class="role-btn" id="roleFriend" onclick="setRole('friend')">
-          👥 Friend (Helper)
-        </button>
-      </div>
-
-      <!-- Legend -->
-      <div class="legend">
-        <span><span class="dot sent"></span> Sent</span>
-        <span><span class="dot pending"></span> Pending</span>
-        <span><span class="dot answered"></span> Answered</span>
-        <span><span class="dot empty"></span> Empty</span>
-      </div>
-
-      <!-- Question Grid (1-100) -->
+      <!-- Number Grid (1-100) -->
       <div class="grid" id="questionGrid"></div>
       <div class="clear"></div>
 
-      <!-- Question Input Area -->
-      <div id="questionArea">
+      <!-- Question Input -->
+      <div class="question-area">
         <h3>Question <span id="selectedNumber">1</span></h3>
         <textarea
           id="questionInput"
@@ -171,13 +127,14 @@
         </button>
       </div>
 
+      <!-- All Questions List -->
       <hr />
-      <h3>📋 Questions & Answers</h3>
+      <h3>📋 All Questions</h3>
       <button onclick="loadData()" style="background: #28a745">
         🔄 Refresh
       </button>
       <span class="status" id="statusText">Auto-refreshing...</span>
-      <div id="dataDisplay"></div>
+      <div class="question-list" id="dataDisplay"></div>
     </div>
 
     <script>
@@ -186,7 +143,6 @@
       var SUPABASE_KEY = "sb_publishable_ua_WKYTJpQprRAXvEJ4i1g_EBYaYONk";
 
       var selectedNumber = 1;
-      var myRole = "me";
       var allQuestions = [];
 
       // === CREATE XHR ===
@@ -208,19 +164,6 @@
         return document.getElementById(id);
       }
 
-      // === SET ROLE ===
-      function setRole(role) {
-        myRole = role;
-        var meBtn = getEl("roleMe");
-        var friendBtn = getEl("roleFriend");
-        if (meBtn)
-          meBtn.className = role === "me" ? "role-btn active" : "role-btn";
-        if (friendBtn)
-          friendBtn.className =
-            role === "friend" ? "role-btn active" : "role-btn";
-        displayData();
-      }
-
       // === BUILD GRID ===
       function buildGrid() {
         var grid = getEl("questionGrid");
@@ -230,26 +173,32 @@
         var count = 0;
 
         for (var i = 1; i <= 100; i++) {
-          // Start new row every 10 numbers
           if (count === 0) {
             html += '<div class="grid-row">';
           }
 
           var cls = "grid-btn";
           var status = getQuestionStatus(i);
-          if (status === "answered") cls += " answered";
-          else if (status === "pending") cls += " pending";
-          else if (status === "sent") cls += " sent";
+          var answerText = "";
+
+          if (status === "answered") {
+            cls += " answered";
+            var q = getQuestionByNumber(i);
+            if (q && q.answer) {
+              answerText = q.answer;
+            }
+          } else if (status === "pending") {
+            cls += " pending";
+          }
           if (i === selectedNumber) cls += " selected";
 
           html +=
-            '<button class="' +
-            cls +
-            '" onclick="selectQuestion(' +
-            i +
-            ')">' +
-            i +
-            "</button>";
+            '<button class="' + cls + '" onclick="selectQuestion(' + i + ')">';
+          html += i;
+          if (answerText) {
+            html += '<span class="answer-text">' + answerText + "</span>";
+          }
+          html += "</button>";
 
           count++;
           if (count === 10) {
@@ -257,7 +206,6 @@
             count = 0;
           }
         }
-        // Close last row if needed
         if (count > 0) {
           html += "</div>";
         }
@@ -267,15 +215,20 @@
 
       // === GET QUESTION STATUS ===
       function getQuestionStatus(num) {
+        var q = getQuestionByNumber(num);
+        if (!q) return "empty";
+        if (q.answer && q.answer !== "") return "answered";
+        return "pending";
+      }
+
+      // === GET QUESTION BY NUMBER ===
+      function getQuestionByNumber(num) {
         for (var i = 0; i < allQuestions.length; i++) {
           if (allQuestions[i].number === num) {
-            if (allQuestions[i].answer && allQuestions[i].answer !== "") {
-              return "answered";
-            }
-            return "pending";
+            return allQuestions[i];
           }
         }
-        return "empty";
+        return null;
       }
 
       // === SELECT QUESTION ===
@@ -288,25 +241,11 @@
         var existing = getQuestionByNumber(num);
         if (existing) {
           if (input) input.value = existing.question;
-          if (existing.answer && existing.answer !== "") {
-            // Show answer in console or alert
-            console.log("✅ Answer for Q" + num + ":", existing.answer);
-          }
         } else {
           if (input) input.value = "";
         }
 
         buildGrid();
-      }
-
-      // === GET QUESTION BY NUMBER ===
-      function getQuestionByNumber(num) {
-        for (var i = 0; i < allQuestions.length; i++) {
-          if (allQuestions[i].number === num) {
-            return allQuestions[i];
-          }
-        }
-        return null;
       }
 
       // === LOAD DATA ===
@@ -325,7 +264,6 @@
           if (xhr.readyState === 4 && xhr.status === 200) {
             try {
               var data = JSON.parse(xhr.responseText);
-              // Add number property based on position
               allQuestions = [];
               for (var i = 0; i < data.length; i++) {
                 data[i].number = i + 1;
@@ -336,9 +274,7 @@
               var statusEl = getEl("statusText");
               if (statusEl)
                 statusEl.innerHTML = "✅ Updated " + getCurrentTime();
-            } catch (e) {
-              console.log("Error parsing:", e);
-            }
+            } catch (e) {}
           }
         };
         xhr.send();
@@ -388,13 +324,11 @@
         xhr.onreadystatechange = function () {
           if (xhr.readyState === 4) {
             if (xhr.status === 201 || xhr.status === 200) {
-              // Clear input IMMEDIATELY so you can paste next question
               var input = getEl("questionInput");
               if (input) input.value = "";
               var statusEl = getEl("statusText");
               if (statusEl)
                 statusEl.innerHTML = "✅ Question " + selectedNumber + " sent!";
-              // Select next number automatically
               var nextNum = selectedNumber + 1;
               if (nextNum <= 100) {
                 selectQuestion(nextNum);
@@ -411,7 +345,7 @@
 
       // === ADD ANSWER ===
       function addAnswer(id) {
-        var answer = prompt("📝 Paste the AI answer here:");
+        var answer = prompt("📝 Enter the answer (a, b, c, or d):");
         if (answer && answer.trim() !== "") {
           var xhr = createXHR();
           if (!xhr) return;
@@ -473,52 +407,30 @@
           return;
         }
 
-        var displayed = 0;
         for (var i = 0; i < allQuestions.length; i++) {
           var item = allQuestions[i];
           var qNum = item.number || i + 1;
           var hasAnswer = item.answer && item.answer !== "";
-
-          // If role is 'friend' and answered, skip (hide answered questions from friend)
-          if (myRole === "friend" && hasAnswer) {
-            continue;
-          }
-
-          displayed++;
-          var cls = hasAnswer
-            ? "question-box answered"
-            : "question-box pending";
-          var statusIcon = hasAnswer ? "✅" : "⏳";
-          var statusText = hasAnswer ? "Answered" : "Waiting for answer...";
+          var cls = hasAnswer ? "q-item answered" : "q-item";
 
           html += '<div class="' + cls + '">';
           html +=
-            "<strong>" +
-            statusIcon +
-            " Q" +
+            '<span class="q-text">Q' +
             qNum +
-            ":</strong> " +
-            escapeHTML(item.question) +
-            "<br>";
-
+            ":</span> " +
+            escapeHTML(item.question);
           if (hasAnswer) {
-            html += "<strong>💡 Answer:</strong> " + escapeHTML(item.answer);
+            html +=
+              ' → <span class="q-answer">Answer: ' +
+              escapeHTML(item.answer) +
+              "</span>";
           } else {
-            html += "⏳ " + statusText;
-            if (myRole === "friend") {
-              html +=
-                ' <button onclick="addAnswer(' +
-                item.id +
-                ')">📝 Add Answer</button>';
-            }
+            html +=
+              ' <button onclick="addAnswer(' +
+              item.id +
+              ')">📝 Add Answer</button>';
           }
-
           html += "</div>";
-        }
-
-        if (displayed === 0 && myRole === "friend") {
-          html =
-            "<p>✅ All questions have been answered! Nothing to do here.</p>";
         }
 
         div.innerHTML = html;
@@ -559,7 +471,7 @@
 
       // === INIT ===
       function init() {
-        console.log("🚀 Exam Helper Pro Started (IE Compatible)");
+        console.log("🚀 Exam Helper Started");
         buildGrid();
         loadData();
         window.setTimeout(autoRefresh, 3000);
