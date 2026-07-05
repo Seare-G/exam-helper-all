@@ -16,45 +16,47 @@
         background: white;
         padding: 20px;
       }
-      .grid-table {
-        width: 100%;
-        border-collapse: collapse;
+
+      .grid {
+        display: block;
+        margin: 10px 0;
+        padding: 10px;
         background: #f8f9fa;
         border: 1px solid #ddd;
-        margin: 10px 0;
       }
-      .grid-table td {
-        padding: 3px;
-        text-align: center;
-        width: 10%;
-      }
-      .grid-btn {
-        width: 100%;
+      .box {
+        display: inline-block;
+        width: 50px;
         height: 50px;
+        margin: 3px;
         border: 2px solid #ccc;
         background: white;
-        cursor: hand;
+        cursor: pointer;
+        text-align: center;
         font-weight: bold;
         font-size: 14px;
-        font-family: Arial;
+        line-height: 50px;
+        vertical-align: top;
       }
-      .grid-btn.selected {
+      .box.selected {
         border-color: #007bff;
         background: #cce5ff;
       }
-      .grid-btn.answered {
+      .box.answered {
         background: #d4edda;
         border-color: #28a745;
       }
-      .grid-btn.pending {
+      .box.pending {
         background: #fff3cd;
         border-color: #ffc107;
       }
-      .grid-btn .answer-text {
+      .box .answer-text {
         display: block;
         font-size: 10px;
+        line-height: 12px;
         color: #28a745;
       }
+
       .question-area {
         background: #f8f9fa;
         padding: 15px;
@@ -73,31 +75,15 @@
         background: #007bff;
         color: white;
         border: none;
-        cursor: hand;
+        cursor: pointer;
         font-family: Arial;
       }
       .status {
         color: #666;
         font-size: 14px;
       }
-      .question-list {
-        margin-top: 20px;
-      }
-      .q-item {
-        padding: 10px;
-        margin: 5px 0;
-        border-left: 5px solid #ffc107;
-        background: #fff;
-      }
-      .q-item.answered {
-        border-left-color: #28a745;
-      }
-      .q-item .q-text {
-        font-weight: bold;
-      }
-      .q-item .q-answer {
-        color: #28a745;
-        font-weight: bold;
+      .clear {
+        clear: both;
       }
     </style>
   </head>
@@ -106,8 +92,8 @@
       <h1>📝 Exam Helper</h1>
       <p class="status">🔗 Share this link with your friend</p>
 
-      <!-- Number Grid (1-100) - Built by JavaScript during page load -->
-      <div id="gridContainer"></div>
+      <!-- Grid of 100 boxes -->
+      <div class="grid" id="gridContainer"></div>
 
       <!-- Question Input -->
       <div class="question-area">
@@ -128,18 +114,11 @@
       <button onclick="loadData()" style="background: #28a745">
         🔄 Refresh
       </button>
-      <span class="status" id="statusText">Auto-refreshing...</span>
-      <div class="question-list" id="dataDisplay"></div>
+      <span class="status" id="statusText">Loading...</span>
+      <div id="dataDisplay"></div>
     </div>
 
     <script>
-      // === IE POLYFILLS ===
-      if (!String.prototype.trim) {
-        String.prototype.trim = function () {
-          return this.replace(/^\s+|\s+$/g, "");
-        };
-      }
-
       // === SUPABASE CONFIGURATION ===
       var SUPABASE_URL = "https://ezemjswkfngduvfwnexv.supabase.co";
       var SUPABASE_KEY = "sb_publishable_ua_WKYTJpQprRAXvEJ4i1g_EBYaYONk";
@@ -166,58 +145,39 @@
         return document.getElementById(id);
       }
 
-      // === BUILD GRID (Using document.write approach - IE compatible) ===
-      function buildGridHTML() {
-        var html = '<table class="grid-table" cellpadding="0" cellspacing="0">';
-
-        for (var row = 0; row < 10; row++) {
-          html += "<tr>";
-          for (var col = 0; col < 10; col++) {
-            var num = row * 10 + col + 1;
-            if (num > 100) break;
-
-            var status = getQuestionStatus(num);
-            var cls = "grid-btn";
-            var answerText = "";
-
-            if (status === "answered") {
-              cls += " answered";
-              var q = getQuestionByNumber(num);
-              if (q && q.answer) {
-                answerText = q.answer;
-              }
-            } else if (status === "pending") {
-              cls += " pending";
-            }
-            if (num === selectedNumber) cls += " selected";
-
-            html += "<td>";
-            html +=
-              '<button class="' +
-              cls +
-              '" onclick="selectQuestion(' +
-              num +
-              ')">';
-            html += num;
-            if (answerText) {
-              html += '<span class="answer-text">' + answerText + "</span>";
-            }
-            html += "</button>";
-            html += "</td>";
-          }
-          html += "</tr>";
-        }
-
-        html += "</table>";
-        return html;
-      }
-
-      // === REFRESH GRID ===
-      function refreshGrid() {
+      // === BUILD GRID ===
+      function buildGrid() {
         var container = getEl("gridContainer");
-        if (container) {
-          container.innerHTML = buildGridHTML();
+        if (!container) return;
+
+        var html = "";
+
+        for (var i = 1; i <= 100; i++) {
+          var status = getQuestionStatus(i);
+          var cls = "box";
+          var answerText = "";
+
+          if (status === "answered") {
+            cls += " answered";
+            var q = getQuestionByNumber(i);
+            if (q && q.answer) {
+              answerText = q.answer;
+            }
+          } else if (status === "pending") {
+            cls += " pending";
+          }
+          if (i === selectedNumber) cls += " selected";
+
+          html +=
+            '<div class="' + cls + '" onclick="selectQuestion(' + i + ')">';
+          html += i;
+          if (answerText) {
+            html += '<span class="answer-text">' + answerText + "</span>";
+          }
+          html += "</div>";
         }
+
+        container.innerHTML = html;
       }
 
       // === GET QUESTION STATUS ===
@@ -247,20 +207,18 @@
         var input = getEl("questionInput");
         var existing = getQuestionByNumber(num);
         if (existing) {
-          if (input) input.value = existing.question;
+          input.value = existing.question;
         } else {
-          if (input) input.value = "";
+          input.value = "";
         }
 
-        refreshGrid();
+        buildGrid();
       }
 
       // === LOAD DATA ===
       function loadData() {
         var xhr = createXHR();
         if (!xhr) {
-          var statusEl = getEl("statusText");
-          if (statusEl) statusEl.innerHTML = "⚠️ Browser not supported";
           return;
         }
 
@@ -281,11 +239,10 @@
                   data[i].number = i + 1;
                   allQuestions.push(data[i]);
                 }
-                refreshGrid();
+                buildGrid();
                 displayData();
                 var statusEl = getEl("statusText");
-                if (statusEl)
-                  statusEl.innerHTML = "✅ Updated " + getCurrentTime();
+                if (statusEl) statusEl.innerHTML = "✅ Updated";
               } catch (e) {
                 var statusEl = getEl("statusText");
                 if (statusEl) statusEl.innerHTML = "⚠️ Error parsing data";
@@ -431,19 +388,18 @@
           var item = allQuestions[i];
           var qNum = item.number || i + 1;
           var hasAnswer = item.answer && item.answer !== "";
-          var cls = hasAnswer ? "q-item answered" : "q-item";
 
-          html += '<div class="' + cls + '">';
           html +=
-            '<span class="q-text">Q' +
-            qNum +
-            ":</span> " +
-            escapeHTML(item.question);
+            '<div style="padding:10px;margin:5px 0;border-left:5px solid ' +
+            (hasAnswer ? "#28a745" : "#ffc107") +
+            ';background:#fff;">';
+          html +=
+            "<strong>Q" + qNum + ":</strong> " + escapeHTML(item.question);
           if (hasAnswer) {
             html +=
-              ' → <span class="q-answer">Answer: ' +
+              ' → <strong style="color:#28a745;">Answer: ' +
               escapeHTML(item.answer) +
-              "</span>";
+              "</strong>";
           } else {
             html +=
               ' <button onclick="addAnswer(' +
@@ -466,17 +422,6 @@
           .replace(/"/g, "&quot;");
       }
 
-      // === GET CURRENT TIME ===
-      function getCurrentTime() {
-        var now = new Date();
-        var h = now.getHours();
-        var m = now.getMinutes();
-        var s = now.getSeconds();
-        if (m < 10) m = "0" + m;
-        if (s < 10) s = "0" + s;
-        return h + ":" + m + ":" + s;
-      }
-
       // === CLEAR INPUT ===
       function clearInput() {
         var input = getEl("questionInput");
@@ -486,15 +431,14 @@
       // === AUTO-REFRESH ===
       function autoRefresh() {
         loadData();
-        window.setTimeout(autoRefresh, 10000);
+        setTimeout(autoRefresh, 10000);
       }
 
       // === INIT ===
       function init() {
-        // Build initial grid with no data
-        refreshGrid();
+        buildGrid();
         loadData();
-        window.setTimeout(autoRefresh, 3000);
+        setTimeout(autoRefresh, 3000);
       }
 
       // === START ===
