@@ -3,6 +3,19 @@
   <head>
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <style>
+      .pending {
+        background: #ffc107 !important;
+      }
+      .answered {
+        background: #28a745 !important;
+        color: white !important;
+      }
+      .selected {
+        border-color: #007bff !important;
+        border-width: 3px !important;
+      }
+    </style>
   </head>
   <body>
     <div id="grid"></div>
@@ -12,10 +25,51 @@
     <div>
       <b>Question <span id="selectedNumber">1</span></b
       ><br />
-      <textarea id="questionInput" rows="4" cols="50"></textarea><br />
-      <button onclick="sendQuestion()">Send Question</button>
-      <span id="status"></span>
+      <textarea
+        id="questionInput"
+        rows="4"
+        cols="50"
+        style="width: 80%; padding: 8px; font-family: Arial; font-size: 14px"
+      ></textarea
+      ><br />
+      <button
+        onclick="sendQuestion()"
+        style="
+          padding: 12px 30px;
+          background: #007bff;
+          color: white;
+          border: none;
+          cursor: pointer;
+          font-size: 16px;
+          font-weight: bold;
+        "
+      >
+        📤 Send Question
+      </button>
+      <span id="status" style="margin-left: 10px; font-weight: bold"></span>
     </div>
+
+    <br /><br />
+
+    <div style="display: flex; gap: 10px; margin-bottom: 10px">
+      <button
+        onclick="clearAllData()"
+        style="
+          padding: 12px 25px;
+          background: #dc3545;
+          color: white;
+          border: none;
+          cursor: pointer;
+          font-weight: bold;
+          font-size: 14px;
+        "
+      >
+        🗑️ WIPE ALL DATA
+      </button>
+    </div>
+
+    <h3>Pending Questions (Need Answers)</h3>
+    <div id="questionList"></div>
 
     <script>
       // === SUPABASE CONFIG ===
@@ -23,6 +77,7 @@
       var SUPABASE_KEY = "sb_publishable_ua_WKYTJpQprRAXvEJ4i1g_EBYaYONk";
 
       var selectedNumber = 1;
+      var allQuestions = [];
 
       // === CREATE XHR ===
       function createXHR() {
@@ -38,6 +93,63 @@
         return null;
       }
 
+      // === COPY TO CLIPBOARD ===
+      function copyText(text) {
+        var textarea = document.createElement("textarea");
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+        alert("Copied: " + text.substring(0, 50) + "...");
+      }
+
+      // === CLEAR ALL DATA ===
+      function clearAllData() {
+        if (
+          confirm(
+            "⚠️ WARNING: This will delete ALL questions and answers from the database. Are you sure?",
+          )
+        ) {
+          if (
+            confirm(
+              "⚠️ FINAL WARNING: This action cannot be undone. Delete everything?",
+            )
+          ) {
+            var xhr = createXHR();
+            if (!xhr) {
+              alert("Browser not supported");
+              return;
+            }
+
+            var url =
+              SUPABASE_URL + "/rest/v1/exam_questions?question_number=gte.1";
+
+            xhr.open("DELETE", url, true);
+            xhr.setRequestHeader("apikey", SUPABASE_KEY);
+            xhr.setRequestHeader("Authorization", "Bearer " + SUPABASE_KEY);
+            xhr.setRequestHeader("Prefer", "return=minimal");
+
+            xhr.onreadystatechange = function () {
+              if (xhr.readyState === 4) {
+                if (xhr.status === 200 || xhr.status === 204) {
+                  document.getElementById("status").innerHTML =
+                    "🗑️ All data wiped!";
+                  allQuestions = [];
+                  buildGrid();
+                  displayQuestions();
+                } else {
+                  document.getElementById("status").innerHTML =
+                    "⚠️ Error: " + xhr.status;
+                }
+              }
+            };
+
+            xhr.send();
+          }
+        }
+      }
+
       // === BUILD GRID ===
       function buildGrid() {
         var grid = document.getElementById("grid");
@@ -46,13 +158,26 @@
         for (var i = 1; i <= 100; i++) {
           var cls = "box";
           if (i === selectedNumber) cls += " selected";
+
+          var q = getQuestionByNumber(i);
+          var answerText = "";
+          var displayText = i;
+
+          if (q && q.answer && q.answer !== "") {
+            cls += " answered";
+            answerText = q.answer;
+            displayText = i + " " + answerText;
+          } else if (q && q.question) {
+            cls += " pending";
+          }
+
           html +=
             '<span class="' +
             cls +
-            '" style="display:inline-block;width:40px;height:40px;border:2px solid #ccc;margin:2px;text-align:center;line-height:40px;font-family:Arial;font-size:14px;cursor:pointer;background:white;" onclick="selectNumber(' +
+            '" style="display:inline-block;width:50px;height:50px;border:2px solid #ccc;margin:2px;text-align:center;line-height:50px;font-family:Arial;font-size:16px;font-weight:bold;cursor:pointer;background:white;vertical-align:top;" onclick="selectNumber(' +
             i +
             ')">' +
-            i +
+            displayText +
             "</span>";
           if (i % 10 === 0) {
             html += "<br>";
@@ -62,11 +187,143 @@
         grid.innerHTML = html;
       }
 
+      // === GET QUESTION BY NUMBER ===
+      function getQuestionByNumber(num) {
+        for (var i = 0; i < allQuestions.length; i++) {
+          if (allQuestions[i].question_number === num) {
+            return allQuestions[i];
+          }
+        }
+        return null;
+      }
+
       // === SELECT NUMBER ===
       function selectNumber(num) {
         selectedNumber = num;
         document.getElementById("selectedNumber").innerHTML = num;
+
+        var input = document.getElementById("questionInput");
+        var q = getQuestionByNumber(num);
+        if (q) {
+          input.value = q.question;
+        } else {
+          input.value = "";
+        }
+
         buildGrid();
+      }
+
+      // === LOAD ALL QUESTIONS ===
+      function loadQuestions() {
+        var xhr = createXHR();
+        if (!xhr) return;
+
+        var url =
+          SUPABASE_URL +
+          "/rest/v1/exam_questions?select=*&order=question_number.asc";
+
+        xhr.open("GET", url, true);
+        xhr.setRequestHeader("apikey", SUPABASE_KEY);
+        xhr.setRequestHeader("Authorization", "Bearer " + SUPABASE_KEY);
+
+        xhr.onreadystatechange = function () {
+          if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+              try {
+                allQuestions = JSON.parse(xhr.responseText);
+                buildGrid();
+                displayQuestions();
+              } catch (e) {}
+            }
+          }
+        };
+
+        xhr.send();
+      }
+
+      // === DISPLAY QUESTIONS (Only unanswered, newest at bottom) ===
+      function displayQuestions() {
+        var div = document.getElementById("questionList");
+        var html = "";
+
+        // Filter only unanswered questions
+        var unanswered = [];
+        for (var i = 0; i < allQuestions.length; i++) {
+          if (!allQuestions[i].answer || allQuestions[i].answer === "") {
+            unanswered.push(allQuestions[i]);
+          }
+        }
+
+        if (unanswered.length === 0) {
+          html =
+            '<p style="color:#28a745;font-weight:bold;">✅ All questions have been answered!</p>';
+          div.innerHTML = html;
+          return;
+        }
+
+        for (var i = 0; i < unanswered.length; i++) {
+          var q = unanswered[i];
+
+          html +=
+            '<div style="padding:15px;margin:8px 0;border-left:5px solid #ffc107;background:#f8f9fa;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;">';
+          html +=
+            '<div style="flex:1;min-width:200px;padding:5px 0;"><b>Q' +
+            q.question_number +
+            ":</b> " +
+            q.question +
+            ' <span style="color:#ffc107;font-size:12px;">⏳ Pending</span></div>';
+          html +=
+            '<div style="display:flex;gap:8px;flex-wrap:wrap;padding:5px 0;">';
+          html +=
+            " <button onclick=\"copyText('" +
+            q.question.replace(/'/g, "\\'") +
+            '\')" style="padding:8px 16px;background:#007bff;color:white;border:none;cursor:pointer;font-size:13px;">📋 Copy</button>';
+          html +=
+            ' <button onclick="addAnswer(' +
+            q.question_number +
+            ')" style="padding:8px 16px;background:#28a745;color:white;border:none;cursor:pointer;font-size:13px;">✅ Add Answer</button>';
+          html += "</div>";
+          html += "</div>";
+        }
+
+        div.innerHTML = html;
+      }
+
+      // === ADD ANSWER ===
+      function addAnswer(num) {
+        var answer = prompt(
+          "Enter answer (a, b, c, or d) for question " + num + ":",
+        );
+
+        if (answer && answer.trim() !== "") {
+          var xhr = createXHR();
+          if (!xhr) return;
+
+          var url =
+            SUPABASE_URL + "/rest/v1/exam_questions?question_number=eq." + num;
+          var data = JSON.stringify({ answer: answer.trim() });
+
+          xhr.open("PATCH", url, true);
+          xhr.setRequestHeader("apikey", SUPABASE_KEY);
+          xhr.setRequestHeader("Authorization", "Bearer " + SUPABASE_KEY);
+          xhr.setRequestHeader("Content-Type", "application/json");
+          xhr.setRequestHeader("Prefer", "return=representation");
+
+          xhr.onreadystatechange = function () {
+            if (xhr.readyState === 4) {
+              if (xhr.status === 200 || xhr.status === 204) {
+                document.getElementById("status").innerHTML =
+                  "✅ Answer added!";
+                loadQuestions();
+              } else {
+                document.getElementById("status").innerHTML =
+                  "⚠️ Error adding answer";
+              }
+            }
+          };
+
+          xhr.send(data);
+        }
       }
 
       // === SEND QUESTION ===
@@ -81,49 +338,90 @@
         var status = document.getElementById("status");
         status.innerHTML = "Sending...";
 
-        var xhr = createXHR();
-        if (!xhr) {
-          status.innerHTML = "Error: Browser not supported";
+        var existing = getQuestionByNumber(selectedNumber);
+        if (existing) {
+          if (
+            !confirm(
+              "Question " + selectedNumber + " already exists. Replace it?",
+            )
+          ) {
+            return;
+          }
+
+          var xhr = createXHR();
+          var url =
+            SUPABASE_URL +
+            "/rest/v1/exam_questions?question_number=eq." +
+            selectedNumber;
+          xhr.open("DELETE", url, true);
+          xhr.setRequestHeader("apikey", SUPABASE_KEY);
+          xhr.setRequestHeader("Authorization", "Bearer " + SUPABASE_KEY);
+          xhr.setRequestHeader("Prefer", "return=minimal");
+
+          xhr.onreadystatechange = function () {
+            if (xhr.readyState === 4) {
+              if (xhr.status === 200 || xhr.status === 204) {
+                sendNewQuestion(question);
+              } else {
+                status.innerHTML = "⚠️ Error deleting existing question";
+              }
+            }
+          };
+          xhr.send();
           return;
         }
 
-        var url = SUPABASE_URL + "/rest/v1/exam_questions";
+        sendNewQuestion(question);
+      }
 
-        var data = {
+      function sendNewQuestion(question) {
+        var xhr = createXHR();
+        if (!xhr) return;
+
+        var url = SUPABASE_URL + "/rest/v1/exam_questions";
+        var data = JSON.stringify({
           question_number: selectedNumber,
           question: question.trim(),
           answer: null,
-        };
-
-        var jsonData = JSON.stringify(data);
+        });
 
         xhr.open("POST", url, true);
         xhr.setRequestHeader("apikey", SUPABASE_KEY);
         xhr.setRequestHeader("Authorization", "Bearer " + SUPABASE_KEY);
         xhr.setRequestHeader("Content-Type", "application/json");
-        xhr.setRequestHeader("Prefer", "return=minimal");
+        xhr.setRequestHeader("Prefer", "return=representation");
 
         xhr.onreadystatechange = function () {
           if (xhr.readyState === 4) {
             if (xhr.status === 201 || xhr.status === 200) {
-              status.innerHTML = "✅ Question " + selectedNumber + " saved!";
+              document.getElementById("status").innerHTML =
+                "✅ Question " + selectedNumber + " saved!";
               document.getElementById("questionInput").value = "";
               var next = selectedNumber + 1;
               if (next <= 100) {
                 selectNumber(next);
               }
+              loadQuestions();
             } else {
-              status.innerHTML =
+              document.getElementById("status").innerHTML =
                 "⚠️ Error: " + xhr.status + " - " + xhr.responseText;
             }
           }
         };
 
-        xhr.send(jsonData);
+        xhr.send(data);
+      }
+
+      // === AUTO REFRESH ===
+      function autoRefresh() {
+        loadQuestions();
+        setTimeout(autoRefresh, 5000);
       }
 
       // === START ===
       buildGrid();
+      loadQuestions();
+      setTimeout(autoRefresh, 3000);
     </script>
   </body>
 </html>
