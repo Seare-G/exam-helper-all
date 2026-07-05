@@ -1,24 +1,126 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
+  <head>
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-</head>
-<body>
+  </head>
+  <body>
     <div id="grid"></div>
 
+    <br /><br />
+
+    <div>
+      <b>Question <span id="selectedNumber">1</span></b
+      ><br />
+      <textarea id="questionInput" rows="4" cols="50"></textarea><br />
+      <button onclick="sendQuestion()">Send Question</button>
+      <span id="status"></span>
+    </div>
+
     <script>
-        var grid = document.getElementById('grid');
-        var html = '';
+      // === SUPABASE CONFIG ===
+      var SUPABASE_URL = "https://ezemjswkfngduvfwnexv.supabase.co";
+      var SUPABASE_KEY = "sb_publishable_ua_WKYTJpQprRAXvEJ4i1g_EBYaYONk";
+
+      var selectedNumber = 1;
+
+      // === CREATE XHR (works in IE) ===
+      function createXHR() {
+        try {
+          return new XMLHttpRequest();
+        } catch (e) {}
+        try {
+          return new ActiveXObject("Msxml2.XMLHTTP.6.0");
+        } catch (e) {}
+        try {
+          return new ActiveXObject("Microsoft.XMLHTTP");
+        } catch (e) {}
+        return null;
+      }
+
+      // === BUILD GRID ===
+      function buildGrid() {
+        var grid = document.getElementById("grid");
+        var html = "";
 
         for (var i = 1; i <= 100; i++) {
-            html += '<span style="display:inline-block;width:40px;height:40px;border:1px solid #ccc;margin:2px;text-align:center;line-height:40px;font-family:Arial;font-size:14px;cursor:pointer;" onclick="alert(' + i + ')">' + i + '</span>';
-            if (i % 10 === 0) {
-                html += '<br>';
-            }
+          var cls = "box";
+          if (i === selectedNumber) cls += " selected";
+          html +=
+            '<span class="' +
+            cls +
+            '" style="display:inline-block;width:40px;height:40px;border:2px solid #ccc;margin:2px;text-align:center;line-height:40px;font-family:Arial;font-size:14px;cursor:pointer;background:white;" onclick="selectNumber(' +
+            i +
+            ')">' +
+            i +
+            "</span>";
+          if (i % 10 === 0) {
+            html += "<br>";
+          }
         }
 
         grid.innerHTML = html;
+      }
+
+      // === SELECT NUMBER ===
+      function selectNumber(num) {
+        selectedNumber = num;
+        document.getElementById("selectedNumber").innerHTML = num;
+        buildGrid();
+      }
+
+      // === SEND QUESTION ===
+      function sendQuestion() {
+        var question = document.getElementById("questionInput").value;
+
+        if (question.trim() === "") {
+          alert("Paste a question first.");
+          return;
+        }
+
+        var status = document.getElementById("status");
+        status.innerHTML = "Sending...";
+
+        var xhr = createXHR();
+        if (!xhr) {
+          status.innerHTML = "Error: Browser not supported";
+          return;
+        }
+
+        var url = SUPABASE_URL + "/rest/v1/exam_questions";
+        var data =
+          '{"question_number":' +
+          selectedNumber +
+          ',"question":"' +
+          question.trim() +
+          '"}';
+
+        xhr.open("POST", url, true);
+        xhr.setRequestHeader("apikey", SUPABASE_KEY);
+        xhr.setRequestHeader("Authorization", "Bearer " + SUPABASE_KEY);
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.setRequestHeader("Prefer", "return=minimal");
+
+        xhr.onreadystatechange = function () {
+          if (xhr.readyState === 4) {
+            if (xhr.status === 201 || xhr.status === 200) {
+              status.innerHTML = "✅ Question " + selectedNumber + " saved!";
+              document.getElementById("questionInput").value = "";
+              var next = selectedNumber + 1;
+              if (next <= 100) {
+                selectNumber(next);
+              }
+            } else {
+              status.innerHTML = "⚠️ Error: " + xhr.status;
+            }
+          }
+        };
+
+        xhr.send(data);
+      }
+
+      // === START ===
+      buildGrid();
     </script>
-</body>
+  </body>
 </html>
