@@ -1,7 +1,7 @@
 <!doctype html>
 <html>
   <head>
-    <title>Exam Helper</title>
+    <title>Exam Helper - Pro</title>
     <style>
       body {
         font-family: Arial;
@@ -9,14 +9,64 @@
         padding: 20px;
       }
       .container {
-        max-width: 800px;
+        max-width: 900px;
         margin: auto;
         background: white;
         padding: 20px;
       }
+
+      /* Grid of question numbers */
+      .grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 15px 0;
+      }
+      .grid-btn {
+        width: 45px;
+        height: 45px;
+        border: 2px solid #ddd;
+        background: white;
+        cursor: hand;
+        font-weight: bold;
+        font-size: 14px;
+        border-radius: 5px;
+      }
+      .grid-btn.selected {
+        border-color: #007bff;
+        background: #e3f2fd;
+      }
+      .grid-btn.answered {
+        background: #d4edda;
+        border-color: #28a745;
+      }
+      .grid-btn.pending {
+        background: #fff3cd;
+        border-color: #ffc107;
+      }
+      .grid-btn.sent {
+        background: #cce5ff;
+        border-color: #007bff;
+      }
+
+      /* Question display */
+      .question-box {
+        background: #f8f9fa;
+        padding: 15px;
+        margin: 10px 0;
+        border-radius: 5px;
+        border-left: 5px solid #007bff;
+      }
+      .question-box.answered {
+        border-left-color: #28a745;
+      }
+      .question-box.pending {
+        border-left-color: #ffc107;
+      }
+
       textarea {
         width: 100%;
-        height: 120px;
+        height: 100px;
         margin: 10px 0;
         padding: 8px;
       }
@@ -26,51 +76,101 @@
         color: white;
         border: none;
         cursor: hand;
-      }
-      .box {
-        background: #f8f9fa;
-        padding: 10px;
-        margin: 10px 0;
-      }
-      .answered {
-        background: #d4edda;
-      }
-      .pending {
-        background: #fff3cd;
-      }
-      .small-btn {
-        padding: 5px 10px;
-        font-size: 12px;
+        border-radius: 5px;
       }
       .status {
         color: #666;
         font-size: 14px;
       }
-      .refresh-btn {
+      .role-selector {
+        margin: 15px 0;
+      }
+      .role-selector button {
+        padding: 8px 20px;
+        margin: 0 5px;
+      }
+      .role-selector .active {
         background: #28a745;
       }
-      .delete-btn {
-        background: #dc3545;
+
+      .legend {
+        display: flex;
+        gap: 20px;
+        margin: 10px 0;
+        font-size: 14px;
+      }
+      .legend span {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .legend .dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        display: inline-block;
+      }
+      .legend .dot.answered {
+        background: #28a745;
+      }
+      .legend .dot.pending {
+        background: #ffc107;
+      }
+      .legend .dot.sent {
+        background: #007bff;
       }
     </style>
   </head>
   <body>
     <div class="container">
-      <h1>📝 Exam Helper</h1>
+      <h1>📝 Exam Helper Pro</h1>
       <p class="status">🔗 Share this link with your friend</p>
 
-      <h3>📤 Send Question</h3>
-      <textarea
-        id="questionInput"
-        placeholder="Paste question here..."
-      ></textarea>
-      <br />
-      <button onclick="sendQuestion()">📤 Send</button>
-      <button onclick="clearInput()" style="background: #6c757d">Clear</button>
+      <!-- Role Selector -->
+      <div class="role-selector">
+        <button id="roleMe" class="active" onclick="setRole('me')">
+          👤 Me (Student)
+        </button>
+        <button id="roleFriend" onclick="setRole('friend')">
+          👥 Friend (Helper)
+        </button>
+      </div>
 
+      <!-- Legend -->
+      <div class="legend">
+        <span><span class="dot sent"></span> Sent (waiting for answer)</span>
+        <span><span class="dot pending"></span> Pending (being answered)</span>
+        <span><span class="dot answered"></span> Answered</span>
+        <span><span class="dot" style="background: #ddd"></span> Empty</span>
+      </div>
+
+      <!-- Question Grid (1-100) -->
+      <div class="grid" id="questionGrid"></div>
+
+      <!-- Question Input Area -->
+      <div id="questionArea">
+        <h3>Question <span id="selectedNumber">1</span></h3>
+        <textarea
+          id="questionInput"
+          placeholder="Paste question here..."
+        ></textarea>
+        <br />
+        <button onclick="sendQuestion()">📤 Send Question</button>
+        <button onclick="clearInput()" style="background: #6c757d">
+          Clear
+        </button>
+      </div>
+
+      <!-- Questions & Answers List -->
       <hr />
-      <h3>📋 Questions & Answers</h3>
-      <button class="refresh-btn" onclick="loadData()">🔄 Refresh</button>
+      <h3>📋 All Questions</h3>
+      <button
+        class="refresh-btn"
+        onclick="loadData()"
+        style="background: #28a745"
+      >
+        🔄 Refresh
+      </button>
       <span class="status" id="statusText">Auto-refreshing...</span>
       <div id="dataDisplay"></div>
     </div>
@@ -80,7 +180,11 @@
       var SUPABASE_URL = "https://ezemjswkfngduvfwnexv.supabase.co";
       var SUPABASE_KEY = "sb_publishable_ua_WKYTJpQprRAXvEJ4i1g_EBYaYONk";
 
-      // === Universal XHR Creator (Works in ALL IE versions) ===
+      var selectedNumber = 1;
+      var myRole = "me"; // 'me' or 'friend'
+      var allQuestions = [];
+
+      // === CREATE XHR ===
       function createXHR() {
         try {
           return new XMLHttpRequest();
@@ -89,153 +193,206 @@
           return new ActiveXObject("Msxml2.XMLHTTP.6.0");
         } catch (e) {}
         try {
-          return new ActiveXObject("Msxml2.XMLHTTP.3.0");
-        } catch (e) {}
-        try {
-          return new ActiveXObject("Msxml2.XMLHTTP");
-        } catch (e) {}
-        try {
           return new ActiveXObject("Microsoft.XMLHTTP");
         } catch (e) {}
         return null;
       }
 
-      // === Universal CORS XHR (Works in IE 8/9 with XDomainRequest) ===
-      function createCORSXHR() {
-        try {
-          return new XMLHttpRequest();
-        } catch (e) {}
-        try {
-          return new XDomainRequest();
-        } catch (e) {}
-        try {
-          return new ActiveXObject("Msxml2.XMLHTTP.6.0");
-        } catch (e) {}
-        try {
-          return new ActiveXObject("Microsoft.XMLHTTP");
-        } catch (e) {}
-        return null;
+      // === GET ELEMENT ===
+      function getEl(id) {
+        return document.getElementById(id);
       }
 
-      // === Universal JSON Parser (Works in IE 6/7) ===
-      function parseJSON(str) {
-        try {
-          return JSON.parse(str);
-        } catch (e) {}
-        try {
-          return eval("(" + str + ")");
-        } catch (e) {}
-        return null;
+      // === SET ROLE ===
+      function setRole(role) {
+        myRole = role;
+        document.getElementById("roleMe").className =
+          role === "me" ? "active" : "";
+        document.getElementById("roleFriend").className =
+          role === "friend" ? "active" : "";
+        loadData();
       }
 
-      // === Universal JSON Stringifier (Works in IE 6/7) ===
-      function stringifyJSON(obj) {
-        try {
-          return JSON.stringify(obj);
-        } catch (e) {}
-        // Simple manual stringify for IE 6/7
-        if (typeof obj === "object") {
-          var str = "{";
-          for (var key in obj) {
-            if (obj.hasOwnProperty(key)) {
-              var val = obj[key];
-              if (typeof val === "string") val = '"' + val + '"';
-              str += '"' + key + '":' + val + ",";
+      // === BUILD GRID ===
+      function buildGrid() {
+        var grid = getEl("questionGrid");
+        var html = "";
+        for (var i = 1; i <= 100; i++) {
+          var cls = "grid-btn";
+          // Check if this question exists in our data
+          var exists = false;
+          var status = "";
+          for (var j = 0; j < allQuestions.length; j++) {
+            if (allQuestions[j].number === i) {
+              exists = true;
+              status =
+                allQuestions[j].answer && allQuestions[j].answer !== ""
+                  ? "answered"
+                  : "pending";
+              break;
             }
           }
-          str = str.replace(/,$/, "") + "}";
-          return str;
+          if (exists) cls += " " + status;
+          if (i === selectedNumber) cls += " selected";
+          html +=
+            '<button class="' +
+            cls +
+            '" onclick="selectQuestion(' +
+            i +
+            ')">' +
+            i +
+            "</button>";
         }
-        return "" + obj;
+        grid.innerHTML = html;
       }
 
-      // === Load Data ===
-      function loadData() {
-        document.getElementById("statusText").innerHTML = "⏳ Loading...";
+      // === SELECT QUESTION ===
+      function selectQuestion(num) {
+        selectedNumber = num;
+        var input = getEl("questionInput");
+        var label = getEl("selectedNumber");
+        if (label) label.innerHTML = num;
 
-        var xhr = createCORSXHR();
-        if (!xhr) {
-          document.getElementById("statusText").innerHTML =
-            "⚠️ Browser not supported";
-          return;
+        // Check if this question already exists
+        var existing = getQuestionByNumber(num);
+        if (existing) {
+          if (input) input.value = existing.question;
+          // Show if answered
+          if (existing.answer && existing.answer !== "") {
+            alert(
+              "✅ This question already has an answer:\n\n" + existing.answer,
+            );
+          }
+        } else {
+          if (input) input.value = "";
         }
+
+        buildGrid();
+      }
+
+      // === GET QUESTION BY NUMBER ===
+      function getQuestionByNumber(num) {
+        for (var i = 0; i < allQuestions.length; i++) {
+          if (allQuestions[i].number === num) {
+            return allQuestions[i];
+          }
+        }
+        return null;
+      }
+
+      // === LOAD DATA ===
+      function loadData() {
+        var xhr = createXHR();
+        if (!xhr) return;
 
         var url =
           SUPABASE_URL + "/rest/v1/exam_questions?select=*&order=id.asc";
 
-        // Handle XDomainRequest (IE 8/9)
-        if (xhr.open && xhr.send) {
-          xhr.open("GET", url, true);
+        xhr.open("GET", url, true);
+        xhr.setRequestHeader("apikey", SUPABASE_KEY);
+        xhr.setRequestHeader("Authorization", "Bearer " + SUPABASE_KEY);
 
-          if (xhr.setRequestHeader) {
-            xhr.setRequestHeader("apikey", SUPABASE_KEY);
-            xhr.setRequestHeader("Authorization", "Bearer " + SUPABASE_KEY);
-            xhr.setRequestHeader("Content-Type", "application/json");
-          }
-
-          xhr.onreadystatechange = function () {
-            if (xhr.readyState === 4) {
-              if (xhr.status === 200) {
-                var data = parseJSON(xhr.responseText);
-                if (data) {
-                  displayData(data);
-                  document.getElementById("statusText").innerHTML =
-                    "✅ Updated " + getCurrentTime();
-                }
-              } else {
-                document.getElementById("statusText").innerHTML =
-                  "⚠️ Error: " + xhr.status;
+        xhr.onreadystatechange = function () {
+          if (xhr.readyState === 4 && xhr.status === 200) {
+            try {
+              allQuestions = JSON.parse(xhr.responseText);
+              // Assign numbers based on order
+              for (var i = 0; i < allQuestions.length; i++) {
+                allQuestions[i].number = i + 1;
               }
-            }
-          };
-          xhr.send();
-        } else {
-          // Fallback for older IE
-          document.getElementById("statusText").innerHTML =
-            "⚠️ Browser not supported";
-        }
+              buildGrid();
+              displayData();
+              getEl("statusText").innerHTML = "✅ Updated " + getCurrentTime();
+            } catch (e) {}
+          }
+        };
+        xhr.send();
       }
 
-      // === Send Question ===
+      // === SEND QUESTION ===
       function sendQuestion() {
-        var q = document.getElementById("questionInput").value;
+        var input = getEl("questionInput");
+        var q = input ? input.value : "";
+
         if (q.trim() === "") {
           alert("Paste a question first.");
           return;
         }
 
-        document.getElementById("statusText").innerHTML = "⏳ Sending...";
-
-        var xhr = createCORSXHR();
-        if (!xhr) {
-          document.getElementById("statusText").innerHTML =
-            "⚠️ Browser not supported";
+        // Check if this number already exists
+        var existing = getQuestionByNumber(selectedNumber);
+        if (existing) {
+          if (
+            !confirm(
+              "Question " + selectedNumber + " already exists. Replace it?",
+            )
+          ) {
+            return;
+          }
+          // Delete existing
+          deleteQuestion(existing.id, function () {
+            sendNewQuestion(q);
+          });
           return;
         }
 
+        sendNewQuestion(q);
+      }
+
+      function sendNewQuestion(q) {
+        var xhr = createXHR();
+        if (!xhr) return;
+
         var url = SUPABASE_URL + "/rest/v1/exam_questions";
-        var data = '{"question":"' + q.trim() + '","answer":""}';
+        var data =
+          '{"question":"' +
+          q.trim() +
+          '","answer":"","number":' +
+          selectedNumber +
+          "}";
 
-        if (xhr.open && xhr.send) {
-          xhr.open("POST", url, true);
+        xhr.open("POST", url, true);
+        xhr.setRequestHeader("apikey", SUPABASE_KEY);
+        xhr.setRequestHeader("Authorization", "Bearer " + SUPABASE_KEY);
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.setRequestHeader("Prefer", "return=minimal");
 
-          if (xhr.setRequestHeader) {
-            xhr.setRequestHeader("apikey", SUPABASE_KEY);
-            xhr.setRequestHeader("Authorization", "Bearer " + SUPABASE_KEY);
-            xhr.setRequestHeader("Content-Type", "application/json");
-            xhr.setRequestHeader("Prefer", "return=minimal");
+        xhr.onreadystatechange = function () {
+          if (xhr.readyState === 4) {
+            if (xhr.status === 201 || xhr.status === 200) {
+              getEl("questionInput").value = "";
+              getEl("statusText").innerHTML =
+                "✅ Question " + selectedNumber + " sent!";
+              loadData();
+            } else {
+              getEl("statusText").innerHTML = "⚠️ Error: " + xhr.status;
+            }
           }
+        };
+        xhr.send(data);
+      }
+
+      // === ADD ANSWER ===
+      function addAnswer(id) {
+        var answer = prompt("📝 Paste the AI answer here:");
+        if (answer && answer.trim() !== "") {
+          var xhr = createXHR();
+          if (!xhr) return;
+
+          var url = SUPABASE_URL + "/rest/v1/exam_questions?id=eq." + id;
+          var data = '{"answer":"' + answer.trim() + '"}';
+
+          xhr.open("PATCH", url, true);
+          xhr.setRequestHeader("apikey", SUPABASE_KEY);
+          xhr.setRequestHeader("Authorization", "Bearer " + SUPABASE_KEY);
+          xhr.setRequestHeader("Content-Type", "application/json");
+          xhr.setRequestHeader("Prefer", "return=minimal");
 
           xhr.onreadystatechange = function () {
             if (xhr.readyState === 4) {
-              if (xhr.status === 201 || xhr.status === 200) {
-                document.getElementById("questionInput").value = "";
-                document.getElementById("statusText").innerHTML =
-                  "✅ Question sent!";
+              if (xhr.status === 200 || xhr.status === 204) {
+                getEl("statusText").innerHTML = "✅ Answer added!";
                 loadData();
-              } else {
-                document.getElementById("statusText").innerHTML =
-                  "⚠️ Error: " + xhr.status;
               }
             }
           };
@@ -243,127 +400,97 @@
         }
       }
 
-      // === Add Answer ===
-      function addAnswer(id) {
-        var answer = prompt("📝 Paste the AI answer here:");
-        if (answer && answer.trim() !== "") {
-          document.getElementById("statusText").innerHTML =
-            "⏳ Sending answer...";
+      // === DELETE QUESTION ===
+      function deleteQuestion(id, callback) {
+        var xhr = createXHR();
+        if (!xhr) return;
 
-          var xhr = createCORSXHR();
-          if (!xhr) {
-            document.getElementById("statusText").innerHTML =
-              "⚠️ Browser not supported";
-            return;
-          }
+        var url = SUPABASE_URL + "/rest/v1/exam_questions?id=eq." + id;
 
-          var url = SUPABASE_URL + "/rest/v1/exam_questions?id=eq." + id;
-          var data = '{"answer":"' + answer.trim() + '"}';
+        xhr.open("DELETE", url, true);
+        xhr.setRequestHeader("apikey", SUPABASE_KEY);
+        xhr.setRequestHeader("Authorization", "Bearer " + SUPABASE_KEY);
+        xhr.setRequestHeader("Prefer", "return=minimal");
 
-          if (xhr.open && xhr.send) {
-            xhr.open("PATCH", url, true);
-
-            if (xhr.setRequestHeader) {
-              xhr.setRequestHeader("apikey", SUPABASE_KEY);
-              xhr.setRequestHeader("Authorization", "Bearer " + SUPABASE_KEY);
-              xhr.setRequestHeader("Content-Type", "application/json");
-              xhr.setRequestHeader("Prefer", "return=minimal");
+        xhr.onreadystatechange = function () {
+          if (xhr.readyState === 4) {
+            if (xhr.status === 200 || xhr.status === 204) {
+              if (callback) callback();
+              loadData();
             }
-
-            xhr.onreadystatechange = function () {
-              if (xhr.readyState === 4) {
-                if (xhr.status === 200 || xhr.status === 204) {
-                  document.getElementById("statusText").innerHTML =
-                    "✅ Answer added!";
-                  loadData();
-                } else {
-                  document.getElementById("statusText").innerHTML =
-                    "⚠️ Error: " + xhr.status;
-                }
-              }
-            };
-            xhr.send(data);
           }
-        }
+        };
+        xhr.send();
       }
 
-      // === Delete Question ===
-      function deleteQuestion(id) {
-        if (confirm("Delete this question?")) {
-          var xhr = createCORSXHR();
-          if (!xhr) {
-            document.getElementById("statusText").innerHTML =
-              "⚠️ Browser not supported";
-            return;
-          }
+      // === DISPLAY DATA ===
+      function displayData() {
+        var div = getEl("dataDisplay");
+        if (!div) return;
 
-          var url = SUPABASE_URL + "/rest/v1/exam_questions?id=eq." + id;
+        var html = "";
 
-          if (xhr.open && xhr.send) {
-            xhr.open("DELETE", url, true);
-
-            if (xhr.setRequestHeader) {
-              xhr.setRequestHeader("apikey", SUPABASE_KEY);
-              xhr.setRequestHeader("Authorization", "Bearer " + SUPABASE_KEY);
-              xhr.setRequestHeader("Prefer", "return=minimal");
-            }
-
-            xhr.onreadystatechange = function () {
-              if (xhr.readyState === 4) {
-                if (xhr.status === 200 || xhr.status === 204) {
-                  loadData();
-                }
-              }
-            };
-            xhr.send();
-          }
-        }
-      }
-
-      // === Display Data ===
-      function displayData(data) {
-        var div = document.getElementById("dataDisplay");
-        div.innerHTML = "";
-
-        if (!data || data.length === 0) {
-          div.innerHTML = "<p>No questions yet. Send one!</p>";
+        if (!allQuestions || allQuestions.length === 0) {
+          html = "<p>No questions yet. Select a number and send one!</p>";
+          div.innerHTML = html;
           return;
         }
 
-        for (var i = 0; i < data.length; i++) {
-          var item = data[i];
-          var cls = item.answer && item.answer !== "" ? "answered" : "pending";
-          var statusIcon = item.answer && item.answer !== "" ? "✅" : "⏳";
+        for (var i = 0; i < allQuestions.length; i++) {
+          var item = allQuestions[i];
+          var qNum = i + 1;
+          var hasAnswer = item.answer && item.answer !== "";
 
-          div.innerHTML += '<div class="box ' + cls + '">';
-          div.innerHTML +=
+          // If role is 'friend' and answered, skip (hide answered questions from friend)
+          if (myRole === "friend" && hasAnswer) {
+            continue;
+          }
+
+          var cls = hasAnswer
+            ? "question-box answered"
+            : "question-box pending";
+          var statusIcon = hasAnswer ? "✅" : "⏳";
+          var statusText = hasAnswer ? "Answered" : "Waiting for answer...";
+
+          html += '<div class="' + cls + '">';
+          html +=
             "<strong>" +
             statusIcon +
             " Q" +
-            (i + 1) +
+            qNum +
             ":</strong> " +
-            item.question +
+            escapeHTML(item.question) +
             "<br>";
 
-          if (item.answer && item.answer !== "") {
-            div.innerHTML += "<strong>💡 Answer:</strong> " + item.answer;
+          if (hasAnswer) {
+            html += "<strong>💡 Answer:</strong> " + escapeHTML(item.answer);
           } else {
-            div.innerHTML += "⏳ Waiting for answer... ";
-            div.innerHTML +=
-              '<button class="small-btn" onclick="addAnswer(' +
-              item.id +
-              ')">📝 Add Answer</button>';
+            html += "⏳ " + statusText;
+            if (myRole === "friend") {
+              html +=
+                ' <button onclick="addAnswer(' +
+                item.id +
+                ')">📝 Add Answer</button>';
+            }
           }
 
-          div.innerHTML +=
-            ' <button class="small-btn delete-btn" onclick="deleteQuestion(' +
-            item.id +
-            ')">🗑️</button>';
-          div.innerHTML += "</div>";
+          html += "</div>";
         }
+
+        div.innerHTML = html;
       }
 
-      // === Get Current Time ===
+      // === ESCAPE HTML ===
+      function escapeHTML(str) {
+        if (!str) return "";
+        return str
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      // === GET CURRENT TIME ===
       function getCurrentTime() {
         var now = new Date();
         var h = now.getHours();
@@ -374,20 +501,32 @@
         return h + ":" + m + ":" + s;
       }
 
-      // === Clear Input ===
+      // === CLEAR INPUT ===
       function clearInput() {
-        document.getElementById("questionInput").value = "";
+        var input = getEl("questionInput");
+        if (input) input.value = "";
       }
 
-      // === Auto-Refresh ===
+      // === AUTO-REFRESH ===
       function autoRefresh() {
         loadData();
-        setTimeout(autoRefresh, 10000);
+        window.setTimeout(autoRefresh, 10000);
       }
 
-      // === Start ===
-      loadData();
-      setTimeout(autoRefresh, 3000);
+      // === INIT ===
+      function init() {
+        console.log("🚀 Exam Helper Pro Started");
+        buildGrid();
+        loadData();
+        window.setTimeout(autoRefresh, 3000);
+      }
+
+      // === START ===
+      if (document.readyState === "complete") {
+        init();
+      } else {
+        window.attachEvent("onload", init);
+      }
     </script>
   </body>
 </html>
