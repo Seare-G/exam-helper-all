@@ -1,6 +1,8 @@
 <!doctype html>
 <html>
   <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <title>Exam Helper</title>
     <style>
       body {
@@ -107,7 +109,12 @@
       <p class="status">🔗 Share this link with your friend</p>
 
       <!-- Number Grid (1-100) -->
-      <table class="grid-table" id="questionGrid"></table>
+      <table
+        class="grid-table"
+        id="questionGrid"
+        cellpadding="0"
+        cellspacing="0"
+      ></table>
 
       <!-- Question Input -->
       <div class="question-area">
@@ -134,6 +141,39 @@
     </div>
 
     <script>
+      // === IE POLYFILLS ===
+      if (!String.prototype.trim) {
+        String.prototype.trim = function () {
+          return this.replace(/^\s+|\s+$/g, "");
+        };
+      }
+      if (typeof JSON === "undefined") {
+        JSON = {
+          parse: function (s) {
+            return eval("(" + s + ")");
+          },
+          stringify: function (obj) {
+            var parts = [];
+            for (var key in obj) {
+              if (obj.hasOwnProperty(key)) {
+                var val = obj[key];
+                var escaped =
+                  '"' +
+                  String(val)
+                    .replace(/\\/g, "\\\\")
+                    .replace(/"/g, '\\"')
+                    .replace(/\r/g, "\\r")
+                    .replace(/\n/g, "\\n")
+                    .replace(/\t/g, "\\t") +
+                  '"';
+                parts.push('"' + key + '":' + escaped);
+              }
+            }
+            return "{" + parts.join(",") + "}";
+          },
+        };
+      }
+
       // === SUPABASE CONFIGURATION ===
       var SUPABASE_URL = "https://ezemjswkfngduvfwnexv.supabase.co";
       var SUPABASE_KEY = "sb_publishable_ua_WKYTJpQprRAXvEJ4i1g_EBYaYONk";
@@ -181,7 +221,11 @@
 
             var btn = document.createElement("button");
             btn.className = "grid-btn";
-            btn.setAttribute("onclick", "selectQuestion(" + num + ")");
+            btn.onclick = (function (n) {
+              return function () {
+                selectQuestion(n);
+              };
+            })(num);
 
             // Check status
             var status = getQuestionStatus(num);
@@ -330,7 +374,7 @@
         if (!xhr) return;
 
         var url = SUPABASE_URL + "/rest/v1/exam_questions";
-        var data = '{"question":"' + q.trim() + '","answer":""}';
+        var data = JSON.stringify({ question: q.trim(), answer: "" });
 
         xhr.open("POST", url, true);
         xhr.setRequestHeader("apikey", SUPABASE_KEY);
@@ -368,7 +412,7 @@
           if (!xhr) return;
 
           var url = SUPABASE_URL + "/rest/v1/exam_questions?id=eq." + id;
-          var data = '{"answer":"' + answer.trim() + '"}';
+          var data = JSON.stringify({ answer: answer.trim() });
 
           xhr.open("PATCH", url, true);
           xhr.setRequestHeader("apikey", SUPABASE_KEY);
@@ -446,7 +490,7 @@
             html +=
               ' <button onclick="addAnswer(' +
               item.id +
-              ')">📝 Add Answer</button>';
+              ')">Add Answer</button>';
           }
           html += "</div>";
         }
@@ -494,12 +538,8 @@
         window.setTimeout(autoRefresh, 3000);
       }
 
-      // === START ===
-      if (document.readyState === "complete") {
-        init();
-      } else {
-        window.attachEvent("onload", init);
-      }
+      // === START (script is at bottom — DOM is ready) ===
+      init();
     </script>
   </body>
 </html>
