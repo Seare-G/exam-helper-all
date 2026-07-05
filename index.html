@@ -15,26 +15,34 @@
         padding: 20px;
       }
 
-      /* Grid of question numbers */
       .grid {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
+        display: block;
         margin: 15px 0;
+        padding: 10px;
+        background: #f8f9fa;
+        border: 1px solid #ddd;
+      }
+      .grid-row {
+        display: block;
+        margin: 4px 0;
+        clear: both;
       }
       .grid-btn {
-        width: 45px;
-        height: 45px;
-        border: 2px solid #ddd;
+        float: left;
+        width: 35px;
+        height: 35px;
+        margin: 2px;
+        border: 1px solid #ccc;
         background: white;
         cursor: hand;
         font-weight: bold;
-        font-size: 14px;
-        border-radius: 5px;
+        font-size: 12px;
+        text-align: center;
+        line-height: 35px;
       }
       .grid-btn.selected {
         border-color: #007bff;
-        background: #e3f2fd;
+        background: #cce5ff;
       }
       .grid-btn.answered {
         background: #d4edda;
@@ -49,12 +57,10 @@
         border-color: #007bff;
       }
 
-      /* Question display */
       .question-box {
         background: #f8f9fa;
         padding: 15px;
         margin: 10px 0;
-        border-radius: 5px;
         border-left: 5px solid #007bff;
       }
       .question-box.answered {
@@ -66,7 +72,7 @@
 
       textarea {
         width: 100%;
-        height: 100px;
+        height: 80px;
         margin: 10px 0;
         padding: 8px;
       }
@@ -76,39 +82,35 @@
         color: white;
         border: none;
         cursor: hand;
-        border-radius: 5px;
       }
       .status {
         color: #666;
         font-size: 14px;
       }
-      .role-selector {
-        margin: 15px 0;
-      }
-      .role-selector button {
+      .role-btn {
         padding: 8px 20px;
         margin: 0 5px;
+        background: #6c757d;
+        color: white;
+        border: none;
+        cursor: hand;
       }
-      .role-selector .active {
+      .role-btn.active {
         background: #28a745;
       }
 
       .legend {
-        display: flex;
-        gap: 20px;
         margin: 10px 0;
         font-size: 14px;
       }
       .legend span {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
+        margin-right: 15px;
       }
       .legend .dot {
+        display: inline-block;
         width: 12px;
         height: 12px;
-        border-radius: 50%;
-        display: inline-block;
+        margin-right: 3px;
       }
       .legend .dot.answered {
         background: #28a745;
@@ -119,6 +121,13 @@
       .legend .dot.sent {
         background: #007bff;
       }
+      .legend .dot.empty {
+        background: #ddd;
+      }
+
+      .clear {
+        clear: both;
+      }
     </style>
   </head>
   <body>
@@ -127,25 +136,26 @@
       <p class="status">🔗 Share this link with your friend</p>
 
       <!-- Role Selector -->
-      <div class="role-selector">
-        <button id="roleMe" class="active" onclick="setRole('me')">
+      <div>
+        <button class="role-btn active" id="roleMe" onclick="setRole('me')">
           👤 Me (Student)
         </button>
-        <button id="roleFriend" onclick="setRole('friend')">
+        <button class="role-btn" id="roleFriend" onclick="setRole('friend')">
           👥 Friend (Helper)
         </button>
       </div>
 
       <!-- Legend -->
       <div class="legend">
-        <span><span class="dot sent"></span> Sent (waiting for answer)</span>
-        <span><span class="dot pending"></span> Pending (being answered)</span>
+        <span><span class="dot sent"></span> Sent</span>
+        <span><span class="dot pending"></span> Pending</span>
         <span><span class="dot answered"></span> Answered</span>
-        <span><span class="dot" style="background: #ddd"></span> Empty</span>
+        <span><span class="dot empty"></span> Empty</span>
       </div>
 
       <!-- Question Grid (1-100) -->
       <div class="grid" id="questionGrid"></div>
+      <div class="clear"></div>
 
       <!-- Question Input Area -->
       <div id="questionArea">
@@ -161,14 +171,9 @@
         </button>
       </div>
 
-      <!-- Questions & Answers List -->
       <hr />
-      <h3>📋 All Questions</h3>
-      <button
-        class="refresh-btn"
-        onclick="loadData()"
-        style="background: #28a745"
-      >
+      <h3>📋 Questions & Answers</h3>
+      <button onclick="loadData()" style="background: #28a745">
         🔄 Refresh
       </button>
       <span class="status" id="statusText">Auto-refreshing...</span>
@@ -181,7 +186,7 @@
       var SUPABASE_KEY = "sb_publishable_ua_WKYTJpQprRAXvEJ4i1g_EBYaYONk";
 
       var selectedNumber = 1;
-      var myRole = "me"; // 'me' or 'friend'
+      var myRole = "me";
       var allQuestions = [];
 
       // === CREATE XHR ===
@@ -206,34 +211,37 @@
       // === SET ROLE ===
       function setRole(role) {
         myRole = role;
-        document.getElementById("roleMe").className =
-          role === "me" ? "active" : "";
-        document.getElementById("roleFriend").className =
-          role === "friend" ? "active" : "";
-        loadData();
+        var meBtn = getEl("roleMe");
+        var friendBtn = getEl("roleFriend");
+        if (meBtn)
+          meBtn.className = role === "me" ? "role-btn active" : "role-btn";
+        if (friendBtn)
+          friendBtn.className =
+            role === "friend" ? "role-btn active" : "role-btn";
+        displayData();
       }
 
       // === BUILD GRID ===
       function buildGrid() {
         var grid = getEl("questionGrid");
+        if (!grid) return;
+
         var html = "";
+        var count = 0;
+
         for (var i = 1; i <= 100; i++) {
-          var cls = "grid-btn";
-          // Check if this question exists in our data
-          var exists = false;
-          var status = "";
-          for (var j = 0; j < allQuestions.length; j++) {
-            if (allQuestions[j].number === i) {
-              exists = true;
-              status =
-                allQuestions[j].answer && allQuestions[j].answer !== ""
-                  ? "answered"
-                  : "pending";
-              break;
-            }
+          // Start new row every 10 numbers
+          if (count === 0) {
+            html += '<div class="grid-row">';
           }
-          if (exists) cls += " " + status;
+
+          var cls = "grid-btn";
+          var status = getQuestionStatus(i);
+          if (status === "answered") cls += " answered";
+          else if (status === "pending") cls += " pending";
+          else if (status === "sent") cls += " sent";
           if (i === selectedNumber) cls += " selected";
+
           html +=
             '<button class="' +
             cls +
@@ -242,26 +250,47 @@
             ')">' +
             i +
             "</button>";
+
+          count++;
+          if (count === 10) {
+            html += "</div>";
+            count = 0;
+          }
         }
+        // Close last row if needed
+        if (count > 0) {
+          html += "</div>";
+        }
+
         grid.innerHTML = html;
+      }
+
+      // === GET QUESTION STATUS ===
+      function getQuestionStatus(num) {
+        for (var i = 0; i < allQuestions.length; i++) {
+          if (allQuestions[i].number === num) {
+            if (allQuestions[i].answer && allQuestions[i].answer !== "") {
+              return "answered";
+            }
+            return "pending";
+          }
+        }
+        return "empty";
       }
 
       // === SELECT QUESTION ===
       function selectQuestion(num) {
         selectedNumber = num;
-        var input = getEl("questionInput");
         var label = getEl("selectedNumber");
         if (label) label.innerHTML = num;
 
-        // Check if this question already exists
+        var input = getEl("questionInput");
         var existing = getQuestionByNumber(num);
         if (existing) {
           if (input) input.value = existing.question;
-          // Show if answered
           if (existing.answer && existing.answer !== "") {
-            alert(
-              "✅ This question already has an answer:\n\n" + existing.answer,
-            );
+            // Show answer in console or alert
+            console.log("✅ Answer for Q" + num + ":", existing.answer);
           }
         } else {
           if (input) input.value = "";
@@ -295,15 +324,21 @@
         xhr.onreadystatechange = function () {
           if (xhr.readyState === 4 && xhr.status === 200) {
             try {
-              allQuestions = JSON.parse(xhr.responseText);
-              // Assign numbers based on order
-              for (var i = 0; i < allQuestions.length; i++) {
-                allQuestions[i].number = i + 1;
+              var data = JSON.parse(xhr.responseText);
+              // Add number property based on position
+              allQuestions = [];
+              for (var i = 0; i < data.length; i++) {
+                data[i].number = i + 1;
+                allQuestions.push(data[i]);
               }
               buildGrid();
               displayData();
-              getEl("statusText").innerHTML = "✅ Updated " + getCurrentTime();
-            } catch (e) {}
+              var statusEl = getEl("statusText");
+              if (statusEl)
+                statusEl.innerHTML = "✅ Updated " + getCurrentTime();
+            } catch (e) {
+              console.log("Error parsing:", e);
+            }
           }
         };
         xhr.send();
@@ -319,7 +354,6 @@
           return;
         }
 
-        // Check if this number already exists
         var existing = getQuestionByNumber(selectedNumber);
         if (existing) {
           if (
@@ -329,7 +363,6 @@
           ) {
             return;
           }
-          // Delete existing
           deleteQuestion(existing.id, function () {
             sendNewQuestion(q);
           });
@@ -344,12 +377,7 @@
         if (!xhr) return;
 
         var url = SUPABASE_URL + "/rest/v1/exam_questions";
-        var data =
-          '{"question":"' +
-          q.trim() +
-          '","answer":"","number":' +
-          selectedNumber +
-          "}";
+        var data = '{"question":"' + q.trim() + '","answer":""}';
 
         xhr.open("POST", url, true);
         xhr.setRequestHeader("apikey", SUPABASE_KEY);
@@ -360,12 +388,21 @@
         xhr.onreadystatechange = function () {
           if (xhr.readyState === 4) {
             if (xhr.status === 201 || xhr.status === 200) {
-              getEl("questionInput").value = "";
-              getEl("statusText").innerHTML =
-                "✅ Question " + selectedNumber + " sent!";
+              // Clear input IMMEDIATELY so you can paste next question
+              var input = getEl("questionInput");
+              if (input) input.value = "";
+              var statusEl = getEl("statusText");
+              if (statusEl)
+                statusEl.innerHTML = "✅ Question " + selectedNumber + " sent!";
+              // Select next number automatically
+              var nextNum = selectedNumber + 1;
+              if (nextNum <= 100) {
+                selectQuestion(nextNum);
+              }
               loadData();
             } else {
-              getEl("statusText").innerHTML = "⚠️ Error: " + xhr.status;
+              var statusEl = getEl("statusText");
+              if (statusEl) statusEl.innerHTML = "⚠️ Error: " + xhr.status;
             }
           }
         };
@@ -391,7 +428,8 @@
           xhr.onreadystatechange = function () {
             if (xhr.readyState === 4) {
               if (xhr.status === 200 || xhr.status === 204) {
-                getEl("statusText").innerHTML = "✅ Answer added!";
+                var statusEl = getEl("statusText");
+                if (statusEl) statusEl.innerHTML = "✅ Answer added!";
                 loadData();
               }
             }
@@ -416,7 +454,6 @@
           if (xhr.readyState === 4) {
             if (xhr.status === 200 || xhr.status === 204) {
               if (callback) callback();
-              loadData();
             }
           }
         };
@@ -436,9 +473,10 @@
           return;
         }
 
+        var displayed = 0;
         for (var i = 0; i < allQuestions.length; i++) {
           var item = allQuestions[i];
-          var qNum = i + 1;
+          var qNum = item.number || i + 1;
           var hasAnswer = item.answer && item.answer !== "";
 
           // If role is 'friend' and answered, skip (hide answered questions from friend)
@@ -446,6 +484,7 @@
             continue;
           }
 
+          displayed++;
           var cls = hasAnswer
             ? "question-box answered"
             : "question-box pending";
@@ -475,6 +514,11 @@
           }
 
           html += "</div>";
+        }
+
+        if (displayed === 0 && myRole === "friend") {
+          html =
+            "<p>✅ All questions have been answered! Nothing to do here.</p>";
         }
 
         div.innerHTML = html;
@@ -515,7 +559,7 @@
 
       // === INIT ===
       function init() {
-        console.log("🚀 Exam Helper Pro Started");
+        console.log("🚀 Exam Helper Pro Started (IE Compatible)");
         buildGrid();
         loadData();
         window.setTimeout(autoRefresh, 3000);
